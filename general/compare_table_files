@@ -1,0 +1,71 @@
+import sys
+import fastparquet
+import pandas as pd
+
+
+def file_to_df(filename):
+    if filename.endswith(".csv"):
+        return csv_to_df(filename)
+    elif filename.endswith(".parq"):
+        return parquet_to_df(filename)
+    else:
+        message = f"Filetype of {filename} is not supported by this script"
+        raise Exception(message)
+
+
+def parquet_to_df(filename):
+
+    pf = fastparquet.ParquetFile(filename)
+    df = pf.to_pandas()
+    return df
+
+
+def csv_to_df(filename):
+    df = pd.read_csv(filename)
+    return df
+
+
+def summarize(df):
+    """summarize the contents of the dataframe"""
+
+    print(df.describe())
+
+
+def compare_file_contents(file1, file2):
+    """Compare contents of two tabular data files,
+
+    Eligible formats are .csv and .parq
+
+    arguments
+    ---------
+    file1: str
+        Path to a tabular data file.
+
+    file2: str
+        Path to a tabular data file.
+
+    returns
+    -------
+    do_contents_match: bool
+        True when contents match
+    """
+
+    df1 = file_to_df(file1)
+    df2 = file_to_df(file2)
+
+    print(f"Summary of {file1}")
+    summarize(df1)
+    print(f"Summary of {file2}")
+    summarize(df2)
+
+    differences = df1.compare(df2)
+    print(type(differences))
+    filename = 'differences.csv'
+    differences.to_csv(filename)
+    print(df1.equals(df2))
+
+
+if __name__ == '__main__':
+    file1 = sys.argv[1]
+    file2 = sys.argv[2]
+    compare_file_contents(file1, file2)

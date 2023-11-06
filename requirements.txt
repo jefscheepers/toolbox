@@ -1,1 +1,14 @@
+cramjam==2.7.0
+defusedxml==0.7.1
+fastparquet==2023.10.1
+fsspec==2023.10.0
+numpy==1.26.1
+packaging==23.2
 pandas==2.0.3
+prettytable==3.9.0
+python-dateutil==2.8.2
+python-irodsclient==1.1.9
+pytz==2023.3.post1
+six==1.16.0
+tzdata==2023.3
+wcwidth==0.2.9

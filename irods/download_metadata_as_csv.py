@@ -15,12 +15,16 @@ def main(session, path):
     metadata = obj.metadata.items()
 
     do_without_extension = Path(path).stem
-    csv_filename = f"{do_without_extension}_metadata.csv"
+    csv_filename = f"{do_without_extension}_metadata_reworked.csv"
 
     with open(csv_filename, "w") as file:
-        file.write("Attribute,value,units\n")
+        writer = csv.writer(file)
+        header = ["attribute","value","units"]
+        writer.writerow(header)
         for avu in metadata:
-            file.write(f"{avu.name},{avu.value},{avu.units}\n")
+            data = [avu.name, avu.value, avu.units]
+            writer.writerow(data)
+            
 
 
 if __name__ == "__main__":

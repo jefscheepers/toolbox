@@ -19,9 +19,12 @@ def main(file):
     csv_filename = f"{filename_without_extension}_metadata.csv"
 
     with open(csv_filename, "w") as file:
-        file.write("Attribute,value,units\n")
+        writer = csv.writer(file)
+        header = ["attribute", "value", "origin"]
+        writer.writerow(header)
         for element in metadata:
-            file.write(f"{element[0]},{element[1]},{element[2]}\n")
+            data = [element[0],element[1],element[2]]
+            writer.writerow(data)
 
 if __name__ == "__main__":
     # Handling commandline arguments

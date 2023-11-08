@@ -15,7 +15,7 @@ def main(session, path):
     metadata = obj.metadata.items()
 
     do_without_extension = Path(path).stem
-    csv_filename = f"{do_without_extension}_metadata_reworked.csv"
+    csv_filename = f"{do_without_extension}_metadata.csv"
 
     with open(csv_filename, "w") as file:
         writer = csv.writer(file)

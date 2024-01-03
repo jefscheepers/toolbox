@@ -7,29 +7,34 @@ from irods.meta import iRODSMeta, AVUOperation
 from irods.session import iRODSSession
 
 
-def remove_all_avus(Object, verbose=False):
+def remove_all_avus(Object, prefix=None, verbose=False):
     
     if verbose:
         print(f"Removing metadata from {Object.path}")
-    # taken from examples at https://github.com/irods/python-irodsclient
     avus_on_Object = Object.metadata.items()
+    print(prefix)
+    if prefix == None:
+        avus_to_remove = avus_on_Object 
+    else:
+        avus_to_remove =  [avu for avu in avus_on_Object if avu.name.startswith(prefix)]
+        print(avus_to_remove)
     Object.metadata.apply_atomic_operations(
-        *[AVUOperation(operation="remove", avu=i) for i in avus_on_Object]
+        *[AVUOperation(operation="remove", avu=i) for i in avus_to_remove]
     )
 
 
-def main(session, path, recursive=False, verbose=False):
+def main(session, path, prefix = None, recursive=False, verbose=False):
     # if given path is a collection
     try:
         coll = session.collections.get(path)
-        remove_all_avus(coll, verbose)
+        remove_all_avus(coll, prefix, verbose)
         if recursive:
             data_objects = coll.data_objects
             for obj in data_objects:
-                remove_all_avus(obj, verbose)
+                remove_all_avus(obj, prefix, verbose)
             subcollections = coll.subcollections
             for subcollection in subcollections:
-                main(session, subcollection.path, recursive, verbose)
+                main(session, subcollection.path, prefix, recursive, verbose)
     except CollectionDoesNotExist:
         # if given path is a data object
         try:
@@ -38,7 +43,7 @@ def main(session, path, recursive=False, verbose=False):
                 raise Exception(
                     f"You cannot use a recursive operation on a data object."
                 )
-            remove_all_avus(obj, verbose)
+            remove_all_avus(obj, prefix, verbose)
         except DataObjectDoesNotExist:
             # if given path doesn't exist
             raise Exception(
@@ -62,6 +67,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Verbose mode",
     )
+    parser.add_argument('--prefix', dest='prefix', nargs='?', default=None)
     args = parser.parse_args()
 
     # creating iRODS session
@@ -75,4 +81,4 @@ if __name__ == "__main__":
     )
     ssl_settings = {"ssl_context": ssl_context}
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
-        main(session, args.path, args.recursive, args.verbose)
+        main(session, args.path, args.prefix, args.recursive, args.verbose)

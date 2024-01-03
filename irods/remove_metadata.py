@@ -5,6 +5,8 @@ from argparse import ArgumentParser
 from irods.exception import CollectionDoesNotExist, DataObjectDoesNotExist
 from irods.meta import iRODSMeta, AVUOperation
 from irods.session import iRODSSession
+from irods.models import DataObject, DataObjectMeta, Collection, CollectionMeta 
+from irods.column import Criterion
 
 
 def remove_all_avus(Object, prefix=None, verbose=False):
@@ -12,15 +14,31 @@ def remove_all_avus(Object, prefix=None, verbose=False):
     if verbose:
         print(f"Removing metadata from {Object.path}")
     avus_on_Object = Object.metadata.items()
-    print(prefix)
     if prefix == None:
         avus_to_remove = avus_on_Object 
     else:
         avus_to_remove =  [avu for avu in avus_on_Object if avu.name.startswith(prefix)]
-        print(avus_to_remove)
     Object.metadata.apply_atomic_operations(
         *[AVUOperation(operation="remove", avu=i) for i in avus_to_remove]
     )
+
+def list_data_objects_with_metadata(session, path, verbose=False):
+    query = session.query(DataObjectMeta.name, DataObject.name, Collection.name)
+    query.filter(Criterion('like', Collection.name, path + '/%'))
+    paths = [f"{result[Collection.name]}/{result[DataObject.name]}" for result in query]
+    paths = set(paths) # only unique paths
+    if verbose:
+        print(f"Found ({len(paths)} data objects with metadata")
+    return paths
+
+def list_subcollections_with_metadata(session, path, verbose=False):
+    query = session.query(CollectionMeta.name, Collection.name)
+    query.filter(Criterion('like', Collection.name, path + '/%'))
+    paths = [f"{result[Collection.name]}" for result in query]
+    paths = set(paths) # only unique paths
+    if verbose:
+        print(f"Found ({len(paths)} subcollections with metadata")
+    return paths
 
 
 def main(session, path, prefix = None, recursive=False, verbose=False):
@@ -29,12 +47,14 @@ def main(session, path, prefix = None, recursive=False, verbose=False):
         coll = session.collections.get(path)
         remove_all_avus(coll, prefix, verbose)
         if recursive:
-            data_objects = coll.data_objects
-            for obj in data_objects:
+            data_objects = list_data_objects_with_metadata(session, path, verbose)
+            for data_object in data_objects:
+                obj = session.data_objects.get(data_object)
                 remove_all_avus(obj, prefix, verbose)
-            subcollections = coll.subcollections
+            subcollections = list_subcollections_with_metadata(session, path, verbose)
             for subcollection in subcollections:
-                main(session, subcollection.path, prefix, recursive, verbose)
+                obj = session.collections.get(subcollection)
+                remove_all_avus(obj, prefix, verbose)
     except CollectionDoesNotExist:
         # if given path is a data object
         try:
@@ -66,6 +86,12 @@ if __name__ == "__main__":
         dest="verbose",
         action="store_true",
         help="Verbose mode",
+    )
+    parser.add_argument(
+        "-t",
+        dest="test",
+        action="store_true",
+        help="test",
     )
     parser.add_argument('--prefix', dest='prefix', nargs='?', default=None)
     args = parser.parse_args()

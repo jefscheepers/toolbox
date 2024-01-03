@@ -8,7 +8,9 @@ from irods.session import iRODSSession
 
 
 def remove_all_avus(Object, verbose=False):
-    print(f"Removing metadata from {Object.path}")
+    
+    if verbose:
+        print(f"Removing metadata from {Object.path}")
     # taken from examples at https://github.com/irods/python-irodsclient
     avus_on_Object = Object.metadata.items()
     Object.metadata.apply_atomic_operations(
@@ -16,18 +18,18 @@ def remove_all_avus(Object, verbose=False):
     )
 
 
-def main(session, path, recursive=False):
+def main(session, path, recursive=False, verbose=False):
     # if given path is a collection
     try:
         coll = session.collections.get(path)
-        remove_all_avus(coll)
+        remove_all_avus(coll, verbose)
         if recursive:
             data_objects = coll.data_objects
             for obj in data_objects:
-                remove_all_avus(obj)
+                remove_all_avus(obj, verbose)
             subcollections = coll.subcollections
             for subcollection in subcollections:
-                main(session, subcollection.path, recursive=True)
+                main(session, subcollection.path, recursive, verbose)
     except CollectionDoesNotExist:
         # if given path is a data object
         try:
@@ -36,7 +38,7 @@ def main(session, path, recursive=False):
                 raise Exception(
                     f"You cannot use a recursive operation on a data object."
                 )
-            remove_all_avus(obj)
+            remove_all_avus(obj, verbose)
         except DataObjectDoesNotExist:
             # if given path doesn't exist
             raise Exception(
@@ -54,6 +56,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Remove metadata from a collection and all its contents, including subcollections",
     )
+    parser.add_argument(
+        "-v",
+        dest="verbose",
+        action="store_true",
+        help="Verbose mode",
+    )
     args = parser.parse_args()
 
     # creating iRODS session
@@ -67,4 +75,4 @@ if __name__ == "__main__":
     )
     ssl_settings = {"ssl_context": ssl_context}
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
-        main(session, args.path, args.recursive)
+        main(session, args.path, args.recursive, args.verbose)

@@ -4,7 +4,51 @@ import os
 import ssl
 from pathlib import Path
 from irods.session import iRODSSession
+from irods.exception import CollectionDoesNotExist, DataObjectDoesNotExist
 from argparse import ArgumentParser
+
+
+
+def compare_filesize(session, file_path, data_object_path):
+
+    """
+    Compare the size of a local file and a file in iRODS
+
+    The function returns True in case both sizes match.
+    It returns False in case the sizes don't match, 
+    or the data object doesn't exist
+
+    Arguments
+    ---------
+    session: obj
+        An iRODSSession object
+
+    slocal_path: str
+        The path of a local file
+        Please provide a full path
+
+    destination: str
+        The path to a data object in iRODS
+        Please provide a full path.
+    
+    Returns
+    -------
+
+    do_sizes_match: bool
+        True if sizes match, False in case of a mismatch.
+    """
+
+    try:
+        size_irods = session.data_objects.get(data_object_path).size
+        size_local = file_path.stat().st_size
+        if (size_irods == size_local):
+            do_sizes_match = True
+        else:
+            do_sizes_match = False
+    except (DataObjectDoesNotExist, CollectionDoesNotExist):
+        # Function will fail if data object doesn't exist
+        do_sizes_match = False
+    return do_sizes_match 
 
 
 def sync_directory(session, source, destination):
@@ -39,20 +83,14 @@ def sync_directory(session, source, destination):
 
         # Check if the object exists in iRODS,
         # and has the same size.
-        # If so, upload the file.
-        should_sync = True
-        try:
-            size_irods = session.data_objects.get(data_object).size
-            size_local = file.stat().st_size
-            if (size_irods == size_local):
-                should_sync = False
-        except Exception:
-            should_sync = True
-        if should_sync:
+        # If not, upload file
+
+        if compare_filesize(session, file, data_object) == False:
             print(f"Uploading {file}.")
             session.data_objects.put(file, data_object)
-        else:
-            print(f"{data_object} was already uploaded with correct size ({size_irods} bytes).")
+        else: 
+            print(f"{data_object} was already uploaded with correct size.")
+            
 
     # for all subdirectories, run this function again
     subdirs = [d for d in directory.iterdir() if d.is_dir()]

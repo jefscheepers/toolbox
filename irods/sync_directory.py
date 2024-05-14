@@ -108,6 +108,7 @@ def compare_checksums(session, file_path, data_object_path):
 
     return do_checksums_match
 
+    
 
 def sync_directory(session, source, destination, verification_method="size"):
     """
@@ -133,6 +134,7 @@ def sync_directory(session, source, destination, verification_method="size"):
             - size
             - checksum
     """
+    
 
     # Create a collection for the current directory
     directory = Path(source)
@@ -173,6 +175,7 @@ if __name__ == "__main__":
         nargs="?",
         help="The method of verification of files (size/checksum)",
     )
+
     parser.add_argument(
         dest="source", help="The path of the directory you want to upload"
     )

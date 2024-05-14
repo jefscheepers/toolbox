@@ -109,9 +109,10 @@ def compare_checksums(session, file_path, data_object_path):
 
     return do_checksums_match
 
-def upload_file(session, source, destination, post_check = False):
+
+def upload_file(session, source, destination, post_check=False):
     """Upload a file to iRODS
-    
+
     Arguments
     ---------
 
@@ -149,7 +150,10 @@ def upload_file(session, source, destination, post_check = False):
         success = False
     return success
 
-def sync_directory(session, source, destination, verification_method="size", post_check=False):
+
+def sync_directory(
+    session, source, destination, verification_method="size", post_check=False
+):
     """
     Synchronize a directory to iRODS
 
@@ -173,18 +177,18 @@ def sync_directory(session, source, destination, verification_method="size", pos
         Options:
             - size
             - checksum
-    
+
     post_check: bool
         Whether to checksum files after upload
-    
+
     Returns
     -------
 
     results: dict
         A dictionary that contains lists of the files that were skipped, succeeded and failed.
     """
-    
-    succeeded = [] 
+
+    succeeded = []
     skipped = []
     failed = []
 
@@ -214,23 +218,20 @@ def sync_directory(session, source, destination, verification_method="size", pos
         else:
             print(f"{data_object} was already uploaded with good status.")
             skipped.append(data_object)
-    
-    results = {
-        "succeeded": succeeded,
-        "skipped": skipped,
-        "failed":  failed
-    }
+
+    results = {"succeeded": succeeded, "skipped": skipped, "failed": failed}
 
     # for all subdirectories, run this function again
     subdirs = [d for d in directory.iterdir() if d.is_dir()]
     for subdir in subdirs:
-        subdir_result = sync_directory(session, subdir, collection, verification_method, post_check)
-        results['succeeded'].extend(subdir_result['succeeded'])
-        results['skipped'].extend(subdir_result['skipped'])
-        results['failed'].extend(subdir_result['failed'])
+        subdir_result = sync_directory(
+            session, subdir, collection, verification_method, post_check
+        )
+        results["succeeded"].extend(subdir_result["succeeded"])
+        results["skipped"].extend(subdir_result["skipped"])
+        results["failed"].extend(subdir_result["failed"])
 
     return results
-
 
 
 if __name__ == "__main__":
@@ -247,7 +248,7 @@ if __name__ == "__main__":
         "--post-check",
         dest="post_check",
         action="store_true",
-        help='Check checksum after upload to verify whether the file(s) are uploaded correctly'
+        help="Check checksum after upload to verify whether the file(s) are uploaded correctly",
     )
     parser.add_argument(
         dest="source", help="The path of the directory you want to upload"
@@ -267,5 +268,7 @@ if __name__ == "__main__":
 
     print(args.post_check)
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
-        results = sync_directory(session, args.source, args.destination, args.verification, args.post_check)
+        results = sync_directory(
+            session, args.source, args.destination, args.verification, args.post_check
+        )
         print(results)

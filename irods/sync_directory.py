@@ -90,6 +90,7 @@ def compare_checksums(session, file_path, data_object_path):
 
     try:
         # get checksum from iRODS
+        # put first so function fails early if data object does not exist
         obj = session.data_objects.get(data_object_path)
         irods_checksum = obj.chksum()
         irods_checksum_sha256 = irods_to_sha256_checksum(irods_checksum)
@@ -108,14 +109,53 @@ def compare_checksums(session, file_path, data_object_path):
 
     return do_checksums_match
 
+def upload_file(session, source, destination, post_check = False):
+    """Upload a file to iRODS
     
+    Arguments
+    ---------
 
-def sync_directory(session, source, destination, verification_method="size"):
+    session: obj
+        An iRODSSession object
+
+    source: str
+        The path of a local file
+        Please provide a full path
+
+    destination: str
+        The path to a data object in iRODS
+        Please provide a full path.
+
+    post_check: bool
+        Whether to checksum files after upload
+
+    Returns
+    -------
+    success: bool
+        True if file was successfully uploaded, otherwise false
+    """
+
+    print(f"Uploading {source}.")
+    try:
+        session.data_objects.put(source, destination)
+        if post_check:
+            print("Verifying file after transfer")
+            success = compare_checksums(session, source, destination)
+        else:
+            success = True
+
+    except:
+        print(f"Uploading {source} failed")
+        success = False
+    return success
+
+def sync_directory(session, source, destination, verification_method="size", post_check=False):
     """
     Synchronize a directory to iRODS
 
     Arguments
     ---------
+
     session: obj
         An iRODSSession object
 
@@ -133,8 +173,20 @@ def sync_directory(session, source, destination, verification_method="size"):
         Options:
             - size
             - checksum
+    
+    post_check: bool
+        Whether to checksum files after upload
+    
+    Returns
+    -------
+
+    results: dict
+        A dictionary that contains lists of the files that were skipped, succeeded and failed.
     """
     
+    succeeded = [] 
+    skipped = []
+    failed = []
 
     # Create a collection for the current directory
     directory = Path(source)
@@ -154,15 +206,31 @@ def sync_directory(session, source, destination, verification_method="size"):
             files_match = compare_checksums(session, file, data_object)
 
         if not files_match:
-            print(f"Uploading {file}.")
-            session.data_objects.put(file, data_object)
+            success = upload_file(session, file, data_object, post_check)
+            if success:
+                succeeded.append(data_object)
+            else:
+                failed.append(file)
         else:
             print(f"{data_object} was already uploaded with good status.")
+            skipped.append(data_object)
+    
+    results = {
+        "succeeded": succeeded,
+        "skipped": skipped,
+        "failed":  failed
+    }
 
     # for all subdirectories, run this function again
     subdirs = [d for d in directory.iterdir() if d.is_dir()]
     for subdir in subdirs:
-        sync_directory(session, subdir, collection)
+        subdir_result = sync_directory(session, subdir, collection, verification_method, post_check)
+        results['succeeded'].extend(subdir_result['succeeded'])
+        results['skipped'].extend(subdir_result['skipped'])
+        results['failed'].extend(subdir_result['failed'])
+
+    return results
+
 
 
 if __name__ == "__main__":
@@ -175,7 +243,12 @@ if __name__ == "__main__":
         nargs="?",
         help="The method of verification of files (size/checksum)",
     )
-
+    parser.add_argument(
+        "--post-check",
+        dest="post_check",
+        action="store_true",
+        help='Check checksum after upload to verify whether the file(s) are uploaded correctly'
+    )
     parser.add_argument(
         dest="source", help="The path of the directory you want to upload"
     )
@@ -192,5 +265,7 @@ if __name__ == "__main__":
     )
     ssl_settings = {"ssl_context": ssl_context}
 
+    print(args.post_check)
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
-        sync_directory(session, args.source, args.destination, args.verification)
+        results = sync_directory(session, args.source, args.destination, args.verification, args.post_check)
+        print(results)

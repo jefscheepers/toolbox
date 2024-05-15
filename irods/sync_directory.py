@@ -4,6 +4,8 @@ import os
 import ssl
 import binascii
 import base64
+import json
+import datetime
 from hashlib import sha256
 from pathlib import Path
 from irods.session import iRODSSession
@@ -236,6 +238,32 @@ def sync_directory(
 
     return results
 
+def write_results_to_log(results):
+    """Write results to a JSON file"""
+
+    date = datetime.datetime.now()
+    formatted_date = date.strftime("%Y%m%d%H%M%S")
+    filename = f"sync_log_{formatted_date}.json"
+
+    with open(filename, "w") as file:
+        json.dump(results, file)
+
+def summarize(source, destination, results):
+    """Print summary of results"""
+
+    number_skipped = len(results['skipped'])
+    number_succeeded = len(results['succeeded'])
+    number_failed = len(results['failed'])
+
+    print(f"{source} was synchronized to {destination}")
+    print(f"{number_skipped} files were skipped, because they were in a good state in iRODS.")
+    print(f"{number_succeeded} files were uploaded successfully.")
+    print(f"{number_failed} files failed to upload or were uploaded incorrectly.")
+    print(f"See logfile for more detailed info")
+
+    
+
+
 
 if __name__ == "__main__":
     # get command-line arguments
@@ -269,9 +297,9 @@ if __name__ == "__main__":
     )
     ssl_settings = {"ssl_context": ssl_context}
 
-    print(args.post_check)
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
         results = sync_directory(
             session, args.source, args.destination, args.verification, args.post_check
         )
-        print(results)
+        write_results_to_log(results)
+        summarize(args.source, args.destination, results)

@@ -196,7 +196,7 @@ def sync_directory(
     directory = Path(source)
     collection = f"{destination}/{directory.name}"
     try:
-        session.collections.get(collections)
+        session.collections.get(collection)
     except CollectionDoesNotExist:
         print(f"Creating collection {collection}")
         session.collections.create(collection)

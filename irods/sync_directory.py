@@ -195,8 +195,11 @@ def sync_directory(
     # Create a collection for the current directory
     directory = Path(source)
     collection = f"{destination}/{directory.name}"
-    print(f"Creating collection {collection}")
-    session.collections.create(collection)
+    try:
+        session.collections.get(collections)
+    except CollectionDoesNotExist:
+        print(f"Creating collection {collection}")
+        session.collections.create(collection)
 
     # upload all files in the directory
     files = [f for f in directory.iterdir() if f.is_file()]

@@ -238,6 +238,7 @@ def sync_directory(
 
     return results
 
+
 def write_results_to_log(results):
     """Write results to a JSON file"""
 
@@ -248,21 +249,21 @@ def write_results_to_log(results):
     with open(filename, "w") as file:
         json.dump(results, file)
 
+
 def summarize(source, destination, results):
     """Print summary of results"""
 
-    number_skipped = len(results['skipped'])
-    number_succeeded = len(results['succeeded'])
-    number_failed = len(results['failed'])
+    number_skipped = len(results["skipped"])
+    number_succeeded = len(results["succeeded"])
+    number_failed = len(results["failed"])
 
     print(f"{source} was synchronized to {destination}")
-    print(f"{number_skipped} files were skipped, because they were in a good state in iRODS.")
+    print(
+        f"{number_skipped} files were skipped, because they were in a good state in iRODS."
+    )
     print(f"{number_succeeded} files were uploaded successfully.")
     print(f"{number_failed} files failed to upload or were uploaded incorrectly.")
     print(f"See logfile for more detailed info")
-
-    
-
 
 
 if __name__ == "__main__":

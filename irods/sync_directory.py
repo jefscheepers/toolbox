@@ -187,12 +187,14 @@ def sync_directory(
     -------
 
     results: dict
-        A dictionary that contains lists of the files that were skipped, succeeded and failed.
+        A dictionary that contains lists of the files that were skipped, succeeded and failed,
+        as well as the total filesize uploaded.
     """
 
     succeeded = []
     skipped = []
     failed = []
+    cumulative_filesize_in_bytes = 0
 
     # Create a collection for the current directory
     directory = Path(source)
@@ -218,13 +220,20 @@ def sync_directory(
             success = upload_file(session, file, data_object, post_check)
             if success:
                 succeeded.append(data_object)
+                size = session.data_objects.get(data_object).size
+                cumulative_filesize_in_bytes += size
             else:
                 failed.append(file)
         else:
             print(f"{data_object} was already uploaded with good status.")
             skipped.append(data_object)
 
-    results = {"succeeded": succeeded, "skipped": skipped, "failed": failed}
+    results = {
+        "succeeded": succeeded,
+        "skipped": skipped,
+        "failed": failed,
+        "cumulative_filesize_in_bytes": cumulative_filesize_in_bytes,
+    }
 
     # for all subdirectories, run this function again
     subdirs = [d for d in directory.iterdir() if d.is_dir()]
@@ -235,6 +244,9 @@ def sync_directory(
         results["succeeded"].extend(subdir_result["succeeded"])
         results["skipped"].extend(subdir_result["skipped"])
         results["failed"].extend(subdir_result["failed"])
+        results["cumulative_filesize_in_bytes"] += subdir_result[
+            "cumulative_filesize_in_bytes"
+        ]
 
     return results
 
@@ -256,14 +268,18 @@ def summarize(source, destination, results):
     number_skipped = len(results["skipped"])
     number_succeeded = len(results["succeeded"])
     number_failed = len(results["failed"])
+    cumulative_filesize_in_bytes = results["cumulative_filesize_in_bytes"]
 
     print(f"{source} was synchronized to {destination}")
     print(
         f"{number_skipped} files were skipped, because they were in a good state in iRODS."
     )
     print(f"{number_succeeded} files were uploaded successfully.")
+    print(
+        f"Total size of successfully uploaded files is {cumulative_filesize_in_bytes} bytes."
+    )
     print(f"{number_failed} files failed to upload or were uploaded incorrectly.")
-    print(f"See logfile for more detailed info")
+    print(f"See logfile for more detailed info.")
 
 
 if __name__ == "__main__":
@@ -299,8 +315,10 @@ if __name__ == "__main__":
     ssl_settings = {"ssl_context": ssl_context}
 
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
+        # synchronize data to iRODS
         results = sync_directory(
             session, args.source, args.destination, args.verification, args.post_check
         )
+        # report in file and in standard output
         write_results_to_log(results)
         summarize(args.source, args.destination, results)

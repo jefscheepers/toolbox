@@ -153,6 +153,48 @@ def upload_file(session, source, destination, post_check=False):
     return success
 
 
+def list_directory_contents(path):
+    """
+    List all directories and files under a given path
+    """
+
+    directories = []
+    files = []
+
+    with os.scandir(path) as entries:
+        for entry in entries:
+            if entry.is_file():
+                files.append(entry.path)
+            elif entry.is_dir():
+                directories.append(entry.path)
+                subdir_directories, subdir_files = list_directory_contents(entry.path)
+                directories.extend(subdir_directories)
+                files.extend(subdir_files)
+
+    return directories, files
+
+
+def sync_directories(session, source, destination):
+
+    directories, files = list_directory_contents(source)
+    directories.append(source) # root not in list by default
+    # sort directories
+    directories.sort(key=lambda x: (x.count('/'), x))
+    print(directories)
+    
+    for directory in directories: 
+        print(directory)
+        collection = directory.replace(str(Path(source).parent), destination)
+        try:
+            session.collections.get(collection)
+            print(f"Collection {collection} exists")
+        except CollectionDoesNotExist:
+            print(f"Creating collection {collection}")
+            session.collections.create(collection)
+
+
+
+
 def sync_directory(
     session, source, destination, verification_method="size", post_check=False
 ):
@@ -319,6 +361,6 @@ if __name__ == "__main__":
         results = sync_directory(
             session, args.source, args.destination, args.verification, args.post_check
         )
-        # report in file and in standard output
+        #report in file and in standard output
         write_results_to_log(results)
         summarize(args.source, args.destination, results)

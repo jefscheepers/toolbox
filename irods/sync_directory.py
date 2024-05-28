@@ -43,11 +43,13 @@ def compare_filesize(session, file_path, data_object_path):
 
     try:
         size_irods = session.data_objects.get(data_object_path).size
-        size_local = file_path.stat().st_size
+        size_local = os.stat(file_path).st_size
+        print(f"irods:{size_irods}, local: {size_local}")
         if size_irods == size_local:
             do_sizes_match = True
         else:
             do_sizes_match = False
+            print("Size didn't match")
     except (DataObjectDoesNotExist, CollectionDoesNotExist):
         # Function will fail if data object doesn't exist
         do_sizes_match = False
@@ -138,7 +140,7 @@ def upload_file(session, source, destination, post_check=False):
         True if file was successfully uploaded, otherwise false
     """
 
-    print(f"Uploading {source}.")
+    print(f"Uploading {source} to {destination}.")
     try:
         session.data_objects.put(source, destination)
         if post_check:
@@ -174,30 +176,8 @@ def list_directory_contents(path):
     return directories, files
 
 
-def sync_directories(session, source, destination):
 
-    directories, files = list_directory_contents(source)
-    directories.append(source) # root not in list by default
-    # sort directories
-    directories.sort(key=lambda x: (x.count('/'), x))
-    print(directories)
-    
-    for directory in directories: 
-        print(directory)
-        collection = directory.replace(str(Path(source).parent), destination)
-        try:
-            session.collections.get(collection)
-            print(f"Collection {collection} exists")
-        except CollectionDoesNotExist:
-            print(f"Creating collection {collection}")
-            session.collections.create(collection)
-
-
-
-
-def sync_directory(
-    session, source, destination, verification_method="size", post_check=False
-):
+def sync_directory(session, source, destination, verification_method="size", post_check=False, restartfile= None):
     """
     Synchronize a directory to iRODS
 
@@ -224,6 +204,9 @@ def sync_directory(
 
     post_check: bool
         Whether to checksum files after upload
+    
+    restartfile: str
+        path to a logfile from the synchronisation script
 
     Returns
     -------
@@ -233,42 +216,46 @@ def sync_directory(
         as well as the total filesize uploaded.
     """
 
-    succeeded = []
+    # For logging
     skipped = []
+    succeeded = []
     failed = []
     cumulative_filesize_in_bytes = 0
 
-    # Create a collection for the current directory
-    directory = Path(source)
-    collection = f"{destination}/{directory.name}"
-    try:
-        session.collections.get(collection)
-    except CollectionDoesNotExist:
-        print(f"Creating collection {collection}")
-        session.collections.create(collection)
-
-    # upload all files in the directory
-    files = [f for f in directory.iterdir() if f.is_file()]
+    directories, files = list_directory_contents(source)
+    directories.append(source) # root not in list by default
+    # sort directories
+    directories.sort(key=lambda x: (x.count('/'), x))
+    
+    for directory in directories: 
+        collection = directory.replace(str(Path(source).parent), destination)
+        try:
+            session.collections.get(collection)
+            print(f"Collection {collection} exists")
+        except CollectionDoesNotExist:
+            print(f"Creating collection {collection}")
+            session.collections.create(collection)
+    
     for file in files:
-        data_object = f"{collection}/{file.name}"
-
+        data_object = file.replace(str(Path(source).parent), destination)
+        
         # verification of file, if it exists
         if verification_method == "size":
             files_match = compare_filesize(session, file, data_object)
         elif verification_method == "checksum":
             files_match = compare_checksums(session, file, data_object)
 
-        if not files_match:
+        if not files_match:      
             success = upload_file(session, file, data_object, post_check)
             if success:
-                succeeded.append(data_object)
+                succeeded.append(file)
                 size = session.data_objects.get(data_object).size
                 cumulative_filesize_in_bytes += size
             else:
                 failed.append(file)
-        else:
+        else: 
             print(f"{data_object} was already uploaded with good status.")
-            skipped.append(data_object)
+            skipped.append(file)
 
     results = {
         "succeeded": succeeded,
@@ -276,19 +263,6 @@ def sync_directory(
         "failed": failed,
         "cumulative_filesize_in_bytes": cumulative_filesize_in_bytes,
     }
-
-    # for all subdirectories, run this function again
-    subdirs = [d for d in directory.iterdir() if d.is_dir()]
-    for subdir in subdirs:
-        subdir_result = sync_directory(
-            session, subdir, collection, verification_method, post_check
-        )
-        results["succeeded"].extend(subdir_result["succeeded"])
-        results["skipped"].extend(subdir_result["skipped"])
-        results["failed"].extend(subdir_result["failed"])
-        results["cumulative_filesize_in_bytes"] += subdir_result[
-            "cumulative_filesize_in_bytes"
-        ]
 
     return results
 

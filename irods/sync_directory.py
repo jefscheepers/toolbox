@@ -206,7 +206,8 @@ def sync_directory(session, source, destination, verification_method="size", pos
         Whether to checksum files after upload
     
     restartfile: str
-        path to a logfile from the synchronisation script
+        path to a logfile from the synchronisation script.
+        Any files in the 
 
     Returns
     -------
@@ -230,7 +231,20 @@ def sync_directory(session, source, destination, verification_method="size", pos
         directories.append(source) # root not in list by default
         # sort directories
         directories.sort(key=lambda x: (x.count('/'), x))
-        
+
+        # If a restartfile is defined, 
+        # remove all files in the categories 'succeeded' and
+        # 'skipped' from the list 'files. These do not need to be checked/
+        # transferred again
+        if restartfile:
+            print(f"Skipping files mentioned in restartfile {restartfile}")
+            with open(restartfile, 'r') as data: 
+                print(data)
+                restart_info = json.load(data)
+                restart_skipped = restart_info['skipped']
+                restart_succeeded = restart_info ['succeeded']
+                files = [ item for item in files if not (item in restart_skipped or item in restart_succeeded) ]
+
         for directory in directories: 
             collection = directory.replace(str(Path(source).parent), destination)
             try:
@@ -262,7 +276,6 @@ def sync_directory(session, source, destination, verification_method="size", pos
                 skipped.append(file)
 
     finally:
-        # logging
         results = {
             "succeeded": succeeded,
             "skipped": skipped,
@@ -322,6 +335,14 @@ if __name__ == "__main__":
         help="Check checksum after upload to verify whether the file(s) are uploaded correctly",
     )
     parser.add_argument(
+        "--restart-file",
+        dest="restart_file",
+        nargs='?', 
+        const=None, 
+        help="""If you want to restart from where a previous transfer left off,
+        add the log file as argument. All its succeeded/skipped files will be skipped.""",
+    )
+    parser.add_argument(
         dest="source", help="The path of the directory you want to upload"
     )
     parser.add_argument(dest="destination", help="The destination in iRODS")
@@ -340,7 +361,7 @@ if __name__ == "__main__":
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
         # synchronize data to iRODS
         results = sync_directory(
-            session, args.source, args.destination, args.verification, args.post_check
+            session, args.source, args.destination, args.verification, args.post_check, args.restart_file
         )
         #report in file and in standard output
         write_results_to_log(results)

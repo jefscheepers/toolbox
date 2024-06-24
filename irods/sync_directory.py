@@ -216,55 +216,62 @@ def sync_directory(session, source, destination, verification_method="size", pos
         as well as the total filesize uploaded.
     """
 
-    # For logging
-    skipped = []
-    succeeded = []
-    failed = []
-    cumulative_filesize_in_bytes = 0
+    # adding try-finally so logfile is always written at the end,
+    # even when serious errors occur or the user terminates the process.
+    try: 
 
-    directories, files = list_directory_contents(source)
-    directories.append(source) # root not in list by default
-    # sort directories
-    directories.sort(key=lambda x: (x.count('/'), x))
-    
-    for directory in directories: 
-        collection = directory.replace(str(Path(source).parent), destination)
-        try:
-            session.collections.get(collection)
-            print(f"Collection {collection} exists")
-        except CollectionDoesNotExist:
-            print(f"Creating collection {collection}")
-            session.collections.create(collection)
-    
-    for file in files:
-        data_object = file.replace(str(Path(source).parent), destination)
+        # For logging
+        skipped = []
+        succeeded = []
+        failed = []
+        cumulative_filesize_in_bytes = 0
+
+        directories, files = list_directory_contents(source)
+        directories.append(source) # root not in list by default
+        # sort directories
+        directories.sort(key=lambda x: (x.count('/'), x))
         
-        # verification of file, if it exists
-        if verification_method == "size":
-            files_match = compare_filesize(session, file, data_object)
-        elif verification_method == "checksum":
-            files_match = compare_checksums(session, file, data_object)
+        for directory in directories: 
+            collection = directory.replace(str(Path(source).parent), destination)
+            try:
+                session.collections.get(collection)
+                print(f"Collection {collection} exists")
+            except CollectionDoesNotExist:
+                print(f"Creating collection {collection}")
+                session.collections.create(collection)
+        
+        for file in files:
+            data_object = file.replace(str(Path(source).parent), destination)
+            
+            # verification of file, if it exists
+            if verification_method == "size":
+                files_match = compare_filesize(session, file, data_object)
+            elif verification_method == "checksum":
+                files_match = compare_checksums(session, file, data_object)
 
-        if not files_match:      
-            success = upload_file(session, file, data_object, post_check)
-            if success:
-                succeeded.append(file)
-                size = session.data_objects.get(data_object).size
-                cumulative_filesize_in_bytes += size
-            else:
-                failed.append(file)
-        else: 
-            print(f"{data_object} was already uploaded with good status.")
-            skipped.append(file)
+            if not files_match:      
+                success = upload_file(session, file, data_object, post_check)
+                if success:
+                    succeeded.append(file)
+                    size = session.data_objects.get(data_object).size
+                    cumulative_filesize_in_bytes += size
+                else:
+                    failed.append(file)
+            else: 
+                print(f"{data_object} was already uploaded with good status.")
+                skipped.append(file)
 
-    results = {
-        "succeeded": succeeded,
-        "skipped": skipped,
-        "failed": failed,
-        "cumulative_filesize_in_bytes": cumulative_filesize_in_bytes,
-    }
+    finally:
+        # logging
+        results = {
+            "succeeded": succeeded,
+            "skipped": skipped,
+            "failed": failed,
+            "cumulative_filesize_in_bytes": cumulative_filesize_in_bytes,
+        }
+        write_results_to_log(results)
 
-    return results
+        return results
 
 
 def write_results_to_log(results):

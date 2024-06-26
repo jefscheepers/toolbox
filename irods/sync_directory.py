@@ -177,7 +177,7 @@ def list_directory_contents(path):
 
 
 
-def sync_directory(session, source, destination, verification_method="size", post_check=False, restartfile= None):
+def sync_directory(session, source, destination, logfile, verification_method="size", post_check=False, restartfile= None):
     """
     Synchronize a directory to iRODS
 
@@ -282,17 +282,21 @@ def sync_directory(session, source, destination, verification_method="size", pos
             "failed": failed,
             "cumulative_filesize_in_bytes": cumulative_filesize_in_bytes,
         }
-        write_results_to_log(results)
+        write_results_to_log(logfile, results)
 
         return results
 
-
-def write_results_to_log(results):
-    """Write results to a JSON file"""
+def generate_logfile_name():
+    """Generate a filename for a logfile"""
 
     date = datetime.datetime.now()
     formatted_date = date.strftime("%Y%m%d%H%M%S")
     filename = f"sync_log_{formatted_date}.json"
+
+    return filename
+
+def write_results_to_log(filename, results):
+    """Write results to a JSON file"""
 
     with open(filename, "w") as file:
         json.dump(results, file)
@@ -359,10 +363,13 @@ if __name__ == "__main__":
     ssl_settings = {"ssl_context": ssl_context}
 
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
+
+        # generate name for logfile
+        logfile = generate_logfile_name()
         # synchronize data to iRODS
         results = sync_directory(
-            session, args.source, args.destination, args.verification, args.post_check, args.restart_file
+            session, args.source, args.destination, logfile, args.verification, args.post_check, args.restart_file
         )
         #report in file and in standard output
-        write_results_to_log(results)
+        write_results_to_log(logfile, results)
         summarize(args.source, args.destination, results)

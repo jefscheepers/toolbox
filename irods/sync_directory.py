@@ -279,6 +279,8 @@ def sync_directory(session, source, destination, logfile, verification_method="s
 
     finally:
         results = {
+            "source": source,
+            "destination": destination,
             "succeeded": succeeded,
             "skipped": skipped,
             "failed": failed,

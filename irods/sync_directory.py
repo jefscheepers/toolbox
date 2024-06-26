@@ -219,33 +219,33 @@ def sync_directory(session, source, destination, logfile, verification_method="s
 
     # adding try-finally so logfile is always written at the end,
     # even when serious errors occur or the user terminates the process.
-    try: 
+     
 
-        # For logging
-        skipped = []
-        succeeded = []
-        failed = []
-        cumulative_filesize_in_bytes = 0
+    # For logging
+    skipped = []
+    succeeded = []
+    failed = []
+    cumulative_filesize_in_bytes = 0
 
-        directories, files = list_directory_contents(source)
-        directories.append(source) # root not in list by default
-        # sort directories
-        directories.sort(key=lambda x: (x.count('/'), x))
+    directories, files = list_directory_contents(source)
+    directories.append(source) # root not in list by default
+    # sort directories
+    directories.sort(key=lambda x: (x.count('/'), x))
 
-        # If a restartfile is defined, 
-        # remove all files in the categories 'succeeded' and
-        # 'skipped' from the list 'files. These do not need to be checked/
-        # transferred again
-        if restartfile:
-            print(f"Skipping files mentioned in restartfile {restartfile}")
-            with open(restartfile, 'r') as data: 
-                restart_info = json.load(data)
-                # Adding files that have to be skipped to our 'skipped' list for 
-                # this transfer.
-                skipped.extend(restart_info['skipped'])
-                skipped.extend(restart_info ['succeeded'])
-                files = [ item for item in files if not (item in restart_info['skipped'] or item in restart_info ['succeeded']) ]
-
+    # If a restartfile is defined, 
+    # remove all files in the categories 'succeeded' and
+    # 'skipped' from the list 'files. These do not need to be checked/
+    # transferred again
+    if restartfile:
+        print(f"Skipping files mentioned in restartfile {restartfile}")
+        with open(restartfile, 'r') as data: 
+            restart_info = json.load(data)
+            # Adding files that have to be skipped to our 'skipped' list for 
+            # this transfer.
+            skipped.extend(restart_info['skipped'])
+            skipped.extend(restart_info ['succeeded'])
+            files = [ item for item in files if not (item in restart_info['skipped'] or item in restart_info ['succeeded']) ]
+    try:
         for directory in directories: 
             collection = directory.replace(str(Path(source).parent), destination)
             try:

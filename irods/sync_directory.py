@@ -373,6 +373,5 @@ if __name__ == "__main__":
         results = sync_directory(
             session, args.source, args.destination, logfile, args.verification, args.post_check, args.restart_file
         )
-        #report in file and in standard output
-        write_results_to_log(logfile, results)
+        # report in standard output
         summarize(args.source, args.destination, results)

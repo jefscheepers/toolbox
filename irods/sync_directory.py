@@ -239,7 +239,6 @@ def sync_directory(session, source, destination, logfile, verification_method="s
         if restartfile:
             print(f"Skipping files mentioned in restartfile {restartfile}")
             with open(restartfile, 'r') as data: 
-                print(data)
                 restart_info = json.load(data)
                 # Adding files that have to be skipped to our 'skipped' list for 
                 # this transfer.

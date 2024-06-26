@@ -241,9 +241,11 @@ def sync_directory(session, source, destination, logfile, verification_method="s
             with open(restartfile, 'r') as data: 
                 print(data)
                 restart_info = json.load(data)
-                restart_skipped = restart_info['skipped']
-                restart_succeeded = restart_info ['succeeded']
-                files = [ item for item in files if not (item in restart_skipped or item in restart_succeeded) ]
+                # Adding files that have to be skipped to our 'skipped' list for 
+                # this transfer.
+                skipped.extend(restart_info['skipped'])
+                skipped.extend(restart_info ['succeeded'])
+                files = [ item for item in files if not (item in restart_info['skipped'] or item in restart_info ['succeeded']) ]
 
         for directory in directories: 
             collection = directory.replace(str(Path(source).parent), destination)
@@ -312,7 +314,7 @@ def summarize(source, destination, results):
 
     print(f"{source} was synchronized to {destination}")
     print(
-        f"{number_skipped} files were skipped, because they were in a good state in iRODS."
+        f"{number_skipped} files were skipped."
     )
     print(f"{number_succeeded} files were uploaded successfully.")
     print(

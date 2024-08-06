@@ -100,7 +100,7 @@ def compare_checksums(session, file_path, data_object_path):
         # get local checksum
         hash_sha256 = sha256()
         with open(file_path, "rb") as file:
-            for chunk in iter(lambda: file.read(4096), b""):
+            for chunk in iter(lambda: file.read(32768), b""):
                 hash_sha256.update(chunk)
         local_checksum_sha256 = hash_sha256.hexdigest()
 

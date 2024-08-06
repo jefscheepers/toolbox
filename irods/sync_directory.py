@@ -223,7 +223,7 @@ def sync_directory(
                 size = session.data_objects.get(data_object).size
                 cumulative_filesize_in_bytes += size
             else:
-                failed.append(file)
+                failed.append(str(file))
         else:
             print(f"{data_object} was already uploaded with good status.")
             skipped.append(data_object)

@@ -216,10 +216,13 @@ def sync_directory(
         data_object = f"{collection}/{file.name}"
 
         # verification of file, if it exists
-        if verification_method == "size":
-            files_match = compare_filesize(session, file, data_object)
-        elif verification_method == "checksum":
+        sizes_match = compare_filesize(session, file, data_object)
+        # only calculate checksums if size does not match (and
+        # checksum is requested)
+        if sizes_match and verification_method == "checksum":
             files_match = compare_checksums(session, file, data_object)
+        else:
+            files_match = sizes_match
 
         if not files_match:
             success = upload_file(session, file, data_object, post_check)

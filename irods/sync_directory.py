@@ -91,10 +91,18 @@ def compare_checksums(session, file_path, data_object_path):
     """
 
     try:
-        # get checksum from iRODS
-        # put first so function fails early if data object does not exist
+        # get data object first so function fails early if data object does not exist
         obj = session.data_objects.get(data_object_path)
-        irods_checksum = obj.chksum()
+        if not obj.size == file_path.stat().st_size:
+            # checksums cannot match if file sizes differ
+            return False
+        try:
+            # get checksum from iRODS
+            irods_checksum = obj.chksum()
+        except Exception as e:
+            if e.args == (-1803000,):
+                # The object is locked, so a checksum cannot be made.
+                return False
         irods_checksum_sha256 = irods_to_sha256_checksum(irods_checksum)
 
         # get local checksum

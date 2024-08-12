@@ -91,10 +91,13 @@ def compare_checksums(session, file_path, data_object_path):
     """
 
     try:
-        # get checksum from iRODS
-        # put first so function fails early if data object does not exist
+        # get data object first so function fails early if data object does not exist
         obj = session.data_objects.get(data_object_path)
+        if not obj.size == file_path.stat().st_size:
+            # checksums cannot match if file sizes differ
+            return False
         try:
+            # get checksum from iRODS
             irods_checksum = obj.chksum()
         except Exception as e:
             if e.args == (-1803000,):
@@ -105,7 +108,7 @@ def compare_checksums(session, file_path, data_object_path):
         # get local checksum
         hash_sha256 = sha256()
         with open(file_path, "rb") as file:
-            for chunk in iter(lambda: file.read(4096), b""):
+            for chunk in iter(lambda: file.read(32768), b""):
                 hash_sha256.update(chunk)
         local_checksum_sha256 = hash_sha256.hexdigest()
 
@@ -216,13 +219,10 @@ def sync_directory(
         data_object = f"{collection}/{file.name}"
 
         # verification of file, if it exists
-        sizes_match = compare_filesize(session, file, data_object)
-        # only calculate checksums if size does not match (and
-        # checksum is requested)
-        if sizes_match and verification_method == "checksum":
+        if verification_method == "size":
+            files_match = compare_filesize(session, file, data_object)
+        elif verification_method == "checksum":
             files_match = compare_checksums(session, file, data_object)
-        else:
-            files_match = sizes_match
 
         if not files_match:
             success = upload_file(session, file, data_object, post_check)

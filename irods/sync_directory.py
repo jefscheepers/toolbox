@@ -6,8 +6,10 @@ import binascii
 import base64
 import json
 import datetime
+import time
 from hashlib import sha256
 from pathlib import Path
+from irods.meta import AVUOperation, iRODSMeta
 from irods.session import iRODSSession
 from irods.exception import CollectionDoesNotExist, DataObjectDoesNotExist
 from argparse import ArgumentParser
@@ -64,6 +66,67 @@ def irods_to_sha256_checksum(irods_checksum):
     sha256_checksum = sha256_checksum.decode("utf-8")
 
     return sha256_checksum
+
+
+def create_modify_time_avu(path):
+    """
+    Reads the modify time of a file and returns ingredients for an AVU
+      the attribute, value and unit for a metadata AVU
+
+    When the last modified time cannot be calculated for some reason,
+    it is returned as 'unknown'.
+
+    Arguments
+    ---------
+    path: str
+        path to a local file
+
+    Returns
+    -------
+    avu: dict
+        dictionary containing a default attribute name ('original_modify_time'),
+        the modify time as value, and an empty unit
+    """
+
+    try:
+        mtime = os.path.getmtime(path)
+        mtime_converted = datetime.datetime.fromtimestamp(mtime).strftime(
+            "%Y%m%d:%H:%M:%S"
+        )
+    except:
+        mtime_converted = "unknown"
+    avu = {"attribute": "original_modify_time", "value": mtime_converted, "units": ""}
+    return avu
+
+
+def add_metadata(session, file, data_object, metadata_methods):
+    """
+    Add metadata to a data object, based on the extraction methods asked
+
+    Arguments
+    ---------
+    session: iRODSSession
+        An iRODSSession object
+    file: str
+        The path to a local file
+    data_object: str
+        The path to a data object
+    metadata_methods: list
+        A list of functions to extract metadata
+
+    Returns:
+    Nothing
+
+    """
+
+    avu_dicts = [md_method(file) for md_method in metadata_methods]
+    avus = [
+        iRODSMeta(item["attribute"], item["value"], item["units"]) for item in avu_dicts
+    ]
+    obj = session.data_objects.get(data_object)
+    obj.metadata.apply_atomic_operations(
+        *[AVUOperation(operation="add", avu=item) for item in avus]
+    )
 
 
 def compare_checksums(session, file_path, data_object_path):
@@ -162,7 +225,12 @@ def upload_file(session, source, destination, post_check=False):
 
 
 def sync_directory(
-    session, source, destination, verification_method="size", post_check=False
+    session,
+    source,
+    destination,
+    verification_method="size",
+    post_check=False,
+    metadata_methods=[],
 ):
     """
     Synchronize a directory to iRODS
@@ -190,6 +258,10 @@ def sync_directory(
 
     post_check: bool
         Whether to checksum files after upload
+
+    metadata_methods: list
+        Any functions that need to be executed to extract metadata
+        from the file or its context to be added as metadata.
 
     Returns
     -------
@@ -227,12 +299,19 @@ def sync_directory(
         if not files_match:
             success = upload_file(session, file, data_object, post_check)
             if success:
+                # log success
                 succeeded.append(data_object)
                 size = session.data_objects.get(data_object).size
                 cumulative_filesize_in_bytes += size
+
+                # add metadata, if any methods were provided to do so
+                if len(metadata_methods) > 0:
+                    add_metadata(session, file, data_object, metadata_methods)
             else:
+                # log failure
                 failed.append(str(file))
         else:
+            # log skipped file
             print(f"{data_object} was already uploaded with good status.")
             skipped.append(data_object)
 
@@ -247,7 +326,12 @@ def sync_directory(
     subdirs = [d for d in directory.iterdir() if d.is_dir()]
     for subdir in subdirs:
         subdir_result = sync_directory(
-            session, subdir, collection, verification_method, post_check
+            session,
+            subdir,
+            collection,
+            verification_method,
+            post_check,
+            metadata_methods,
         )
         results["succeeded"].extend(subdir_result["succeeded"])
         results["skipped"].extend(subdir_result["skipped"])
@@ -307,6 +391,12 @@ if __name__ == "__main__":
         help="Check checksum after upload to verify whether the file(s) are uploaded correctly",
     )
     parser.add_argument(
+        "--preserve-mtime",
+        dest="preserve_mtime",
+        action="store_true",
+        help="Add the last modified time of the local file as metadata to the dataobject after uploading",
+    )
+    parser.add_argument(
         dest="source", help="The path of the directory you want to upload"
     )
     parser.add_argument(dest="destination", help="The destination in iRODS")
@@ -323,9 +413,19 @@ if __name__ == "__main__":
     ssl_settings = {"ssl_context": ssl_context}
 
     with iRODSSession(irods_env_file=env_file, **ssl_settings) as session:
+
+        metadata_methods = []
+        if args.preserve_mtime:
+            metadata_methods.append(create_modify_time_avu)
+            print("Adding mtime as metadata")
         # synchronize data to iRODS
         results = sync_directory(
-            session, args.source, args.destination, args.verification, args.post_check
+            session,
+            args.source,
+            args.destination,
+            args.verification,
+            args.post_check,
+            metadata_methods,
         )
         # report in file and in standard output
         write_results_to_log(results)

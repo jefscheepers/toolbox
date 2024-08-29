@@ -90,8 +90,15 @@ def create_modify_time_avu(path):
 
     try:
         mtime = os.path.getmtime(path)
-        mtime_converted = datetime.datetime.fromtimestamp(mtime).strftime(
-            "%Y%m%d:%H:%M:%S"
+        # The timestamp is converted from a string to a datetime object,
+        # so the timezone can be made explicit (offset to UTC),
+        # formatted following the ISO 8601 format,
+        # and has the granularity of seconds
+        # (since many Linux systems don't store more granularity)
+        mtime_converted = (
+            datetime.datetime.fromtimestamp(mtime)
+            .astimezone()
+            .isoformat(timespec="seconds")
         )
     except:
         mtime_converted = "unknown"

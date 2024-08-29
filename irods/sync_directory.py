@@ -97,7 +97,7 @@ def create_modify_time_avu(path):
         # (since many Linux systems don't store more granularity)
         mtime_converted = (
             datetime.datetime.fromtimestamp(mtime)
-            .astimezone()
+            .astimezone(datetime.timezone.utc)
             .isoformat(timespec="seconds")
         )
     except:
